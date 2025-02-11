@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maze Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: url('maze_background.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: #fff;
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid white;
+            margin: 20px auto;
+            display: block;
+        }
+        #menu, #settings {
+            background: url('maze_background.jpg') no-repeat center center fixed;
+            padding: 20px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+        button {
+            background-color: #444;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Maze Game</h1>
+    <div id="menu">
+        <button onclick="startAiOnlyMode()">AI-Only Mode</button>
+        <button onclick="playerVsAiMode()">Player vs AI Mode</button>
+        <button onclick="openSettings()">Settings</button>
+        <button onclick="quitGame()">Quit</button>
+    </div>
+    <div id="settings" style="display: none;">
+        <h2>Settings</h2>
+        <button onclick="changeDifficulty()">Change Difficulty</button>
+        <button onclick="changeWallColor()">Change Wall Color</button>
+        <button onclick="goBackToMenu()">Back to Main Menu</button>
+    </div>
+    <canvas id="gameCanvas" style="display: none;"></canvas>
+    <div id="timer" style="display: none; color: white; font-size: 20px; position: absolute; top: 10px; left: 10px;"></div>
+    <div id="performanceMetrics" style="display: none; color: white; font-size: 18px; text-align: center; margin-top: 20px;"></div>
+
+    <script>
+        // Global settings
+        let mazeSettings = {
+            difficulty: "Beginner",
+            mazeSize: [15, 15],
+            wallColor: "#000"
+
+            
+        };
+
+        function applySettings() {
+            console.log("Settings applied:", mazeSettings);
+        }
+
+        function adjustCanvasSize(width, height) {
+            const canvas = document.getElementById("gameCanvas");
+            const maxDimension = 600; // Maximum canvas size
+            const cellSize = Math.floor(maxDimension / Math.max(width, height));
+            canvas.width = cellSize * width;
+            canvas.height = cellSize * height;
+            return cellSize;
+        }
+
+        function openSettings() {
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("settings").style.display = "block";
+        }
+
+        function goBackToMenu() {
+            document.getElementById("menu").style.display = "block";
+            document.getElementById("settings").style.display = "none";
+        }
+
+function changeDifficulty() {
+    const difficultyOptions = {
+        Beginner: [15, 15],
+        Experienced: [20, 20],
+        Advanced: [25, 25],
+        Expert: [30, 30],
+        Ultimate: [40, 40]
+    };
+    const choice = prompt("Choose Difficulty: Beginner, Experienced, Advanced, Expert, Ultimate");
+    if (choice in difficultyOptions) {
+        mazeSettings.difficulty = choice;
+        mazeSettings.mazeSize = difficultyOptions[choice];
+        alert(`Difficulty set to ${choice}`);
+        applySettings();
+    } else {
+        alert("Invalid choice!");
+    }
+}
+
+
+        function changeWallColor() {
+            const color = prompt("Enter wall color in HEX format (e.g., #000000 for black):");
+            if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
+                mazeSettings.wallColor = color;
+                alert(`Wall color set to ${color}`);
+                applySettings();
+            } else {
+                alert("Invalid color format!");
+            }
+        }
+
+        function quitGame() {
+            alert("Game Quit");
+        }
+function generateMaze(width, height) {
+    if (!width || !height || width <= 0 || height <= 0) {
+        throw new Error("Invalid maze dimensions");
+    }
+
+    const maze = Array.from({ length: height }, () => Array(width).fill(1));
+    const stack = [];
+    const startX = Math.floor(Math.random() * (height / 2)) * 2 + 1;
+    const startY = Math.floor(Math.random() * (width / 2)) * 2 + 1;
+
+    maze[startX][startY] = 0; // Set starting point
+    stack.push([startX, startY]);
+
+    const directions = [
+        [0, 2], [0, -2], [2, 0], [-2, 0]
+    ];
+
+    while (stack.length > 0) {
+        const [x, y] = stack.pop();
+        const shuffledDirections = directions.sort(() => Math.random() - 0.5);
+
+        for (const [dx, dy] of shuffledDirections) {
+            const nx = x + dx;
+            const ny = y + dy;
+
+            if (
+                nx > 0 && nx < height - 1 &&
+                ny > 0 && ny < width - 1 &&
+                maze[nx][ny] === 1
+            ) {
+                maze[nx][ny] = 0; // Mark as path
+                maze[x + dx / 2][y + dy / 2] = 0; // Remove wall
+                stack.push([nx, ny]);
+            }
+        }
+    }
+
+    return maze;
+}
+
+        function displayMaze(maze, ctx, cellSize) {
+            for (let row = 0; row < maze.length; row++) {
+                for (let col = 0; col < maze[0].length; col++) {
+                    ctx.fillStyle = maze[row][col] === 1 ? mazeSettings.wallColor : "#fff";
+                    ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                }
+            }
+        }
+
+        function addStartAndEndPoints(ctx, maze, cellSize) {
+            ctx.fillStyle = "#0f0"; // Green for Start
+            ctx.fillRect(cellSize, cellSize, cellSize, cellSize);
+
+            ctx.fillStyle = "#f00"; // Red for End
+            ctx.fillRect((maze[0].length - 2) * cellSize, (maze.length - 2) * cellSize, cellSize, cellSize);
+        }
+ function aiSolveMaze(maze, start, end) {
+    const queue = [[start, [start]]]; // Queue with position and path
+    const visited = new Set();
+    visited.add(`${start[0]}-${start[1]}`);
+
+    while (queue.length > 0) {
+        const [current, path] = queue.shift();
+
+        if (current[0] === end[0] && current[1] === end[1]) {
+            return path; // Path found
+        }
+
+        // Explore neighbors
+        for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+            const nx = current[0] + dx;
+            const ny = current[1] + dy;
+
+            if (
+                nx >= 0 &&
+                ny >= 0 &&
+                nx < maze.length &&
+                ny < maze[0].length &&
+                maze[nx][ny] === 0 &&
+                !visited.has(`${nx}-${ny}`)
+            ) {
+                visited.add(`${nx}-${ny}`);
+                queue.push([[nx, ny], path.concat([[nx, ny]])]);
+            }
+        }
+    }
+
+    return []; // No solution found
+}
+function visualizeAiPath(ctx, maze, path, cellSize, onFinish) {
+    let index = 0;
+    function drawStep() {
+        if (index < path.length) {
+            const [row, col] = path[index];
+            ctx.fillStyle = "#00f"; // AI path color
+            ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+            index++;
+            setTimeout(drawStep, 100); // Delay between steps
+        } else {
+            onFinish(); // Call the callback function after path visualization is complete
+        }
+    }
+    drawStep();
+}
+
+
+function startAiOnlyMode() {
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.style.display = "block";
+    document.getElementById("menu").style.display = "none";
+
+    const [width, height] = mazeSettings.mazeSize;
+
+    console.log(`Maze dimensions: ${width}x${height}`);
+    if (!width || !height) {
+        console.error("Invalid maze dimensions.");
+        return;
+    }
+
+    const cellSize = adjustCanvasSize(width, height);
+    const maze = generateMaze(width, height);
+    displayMaze(maze, ctx, cellSize);
+    addStartAndEndPoints(ctx, maze, cellSize);
+
+    const start = [1, 1];
+    const end = [height - 2, width - 2];
+    const path = aiSolveMaze(maze, start, end);
+
+    let timer = 40; // 40-second timer
+    let steps = 0;
+
+    const timerElement = document.getElementById("timer");
+    timerElement.style.display = "block";
+    timerElement.textContent = `Time Left: ${timer}s`;
+
+    const timerInterval = setInterval(() => {
+    timer--;
+    timerElement.textContent = `Time Left: ${timer}s`;
+
+    if (timer <= 0) {
+        clearInterval(timerInterval);
+        alert("No one solved the maze.");
+        showPerformanceMetrics(playerSteps, aiSteps, "N/A");
+        timerElement.style.display = "none";
+    }
+}, 1000);
+    if (path.length > 0) {
+    visualizeAiPath(ctx, maze, path, cellSize, () => {
+        clearInterval(timerInterval);
+        timerElement.style.display = "none";
+        const timeTaken = 40 - timer; // Total time minus remaining
+        alert("AI solved the maze!");
+        showPerformanceMetrics(path.length, timeTaken); // Correctly pass timeTaken
+    });
+   }
+}
+
+
+function showPerformanceMetrics(aiSteps, timeTaken) {
+    const metricsElement = document.getElementById("performanceMetrics");
+    metricsElement.style.display = "block";
+    metricsElement.innerHTML = `
+        <h3>Performance Metrics</h3>
+        <p>AI Steps Taken: ${aiSteps || "N/A"}</p>
+        <p>Time Taken: ${timeTaken || "N/A"} seconds</p>
+        <button onclick="returnToMenu()">Back to Main Menu</button>
+    `;
+}
+
+function returnToMenu() {
+    const canvas = document.getElementById("gameCanvas");
+    const timerElement = document.getElementById("timer");
+    const performanceMetrics = document.getElementById("performanceMetrics");
+
+    // Hide game elements
+    canvas.style.display = "none";
+    timerElement.style.display = "none";
+    performanceMetrics.style.display = "none";
+
+    // Show the main menu
+    document.getElementById("menu").style.display = "block";
+}
+
+
+function playerVsAiMode() {
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.style.display = "block";
+    document.getElementById("menu").style.display = "none";
+
+    const [width, height] = mazeSettings.mazeSize;
+    const cellSize = adjustCanvasSize(width, height);
+
+    const maze = generateMaze(width, height);
+    displayMaze(maze, ctx, cellSize);
+    addStartAndEndPoints(ctx, maze, cellSize);
+
+    const start = [1, 1];
+    const end = [height - 2, width - 2];
+    const aiPath = aiSolveMaze(maze, start, end);
+
+    let playerPos = [...start];
+    let playerSteps = 0;
+    let aiIndex = 0;
+    let aiSteps = 0;
+    let timer = 40; // 40 seconds
+
+    const timerElement = document.getElementById("timer");
+    timerElement.style.display = "block";
+    timerElement.textContent = `Time Left: ${timer}s`;
+
+    const timerInterval = setInterval(() => {
+    timer--;
+    timerElement.textContent = `Time Left: ${timer}s`;
+
+    if (timer <= 0) {
+        clearInterval(timerInterval);
+        alert("No one solved the maze.");
+        showPerformanceMetrics(playerSteps, aiSteps, "N/A");
+        timerElement.style.display = "none";
+    }
+}, 1000);
+
+
+function handlePlayerMove(event) {
+    const directions = {
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1],
+    };
+
+    if (event.key in directions) {
+        const [dx, dy] = directions[event.key];
+        const [newRow, newCol] = [playerPos[0] + dx, playerPos[1] + dy];
+
+        if (
+            newRow >= 0 &&
+            newCol >= 0 &&
+            newRow < maze.length &&
+            newCol < maze[0].length &&
+            maze[newRow][newCol] === 0
+        ) {
+            playerPos = [newRow, newCol];
+            playerSteps++; // Increment player steps each time they move
+
+            if (playerPos[0] === end[0] && playerPos[1] === end[1]) {
+                endGame("Player");
+            }
+        }
+    }
+}
+
+
+    function handleAiMove() {
+        if (aiIndex < aiPath.length - 1) {
+            aiIndex++;
+            aiSteps++;
+            const [aiRow, aiCol] = aiPath[aiIndex];
+            if (aiRow === end[0] && aiCol === end[1]) {
+                endGame("AI");
+            }
+        }
+    }
+
+ function endGame(winner) {
+    clearInterval(timerInterval);
+    clearInterval(aiInterval);
+    timerElement.style.display = "none";
+    document.removeEventListener("keydown", handlePlayerMove);
+
+    const timeTaken = 40 - timer; // Calculate time taken
+
+    if (winner === "Player") {
+        alert("Player wins!");
+        showPerformanceMetrics(playerSteps, aiSteps, timeTaken); // Include playerSteps
+    } else if (winner === "AI") {
+        alert("AI wins!");
+        showPerformanceMetrics(playerSteps, aiSteps, timeTaken); // Include playerSteps
+    } else {
+        alert("No one solved the maze.");
+        showPerformanceMetrics(playerSteps, aiSteps, "N/A");
+    }
+}
+function showPerformanceMetrics(playerSteps, aiSteps, timeTaken) {
+    const metricsElement = document.getElementById("performanceMetrics");
+    metricsElement.style.display = "block";
+    metricsElement.innerHTML = `
+        <h3>Performance Metrics</h3>
+        <p>Player Steps Taken: ${playerSteps || "N/A"}</p>
+        <p>AI Steps Taken: ${aiSteps || "N/A"}</p>
+        <p>Time Taken: ${timeTaken || "N/A"} seconds</p>
+        <button onclick="returnToMenu()">Back to Main Menu</button>
+    `;
+}
+
+
+    document.addEventListener("keydown", handlePlayerMove);
+
+    const aiInterval = setInterval(() => {
+        if (aiIndex >= aiPath.length - 1) {
+            clearInterval(aiInterval);
+        } else {
+            handleAiMove();
+        }
+    }, 300);
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        displayMaze(maze, ctx, cellSize);
+        addStartAndEndPoints(ctx, maze, cellSize);
+
+        ctx.fillStyle = "#00f"; // Player (blue)
+        ctx.fillRect(playerPos[1] * cellSize, playerPos[0] * cellSize, cellSize, cellSize);
+
+        if (aiIndex < aiPath.length) {
+            const [aiRow, aiCol] = aiPath[aiIndex];
+            ctx.fillStyle = "#f00"; // AI (red)
+            ctx.fillRect(aiCol * cellSize, aiRow * cellSize, cellSize, cellSize);
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    render();
+}
+
+
+    </script>
+</body>
+</html>
